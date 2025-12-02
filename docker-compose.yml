@@ -1,20 +1,22 @@
 version: "3.9"
 
 services:
-  # ==============================
-  # JENKINS
-  # ==============================
+  # -------------------------------------------------------
+  # Jenkins (+도커 커스텀 이미지 사용)
+  # -------------------------------------------------------
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    build:
+      context: .                # 현재 디렉터리
+      dockerfile: Dockerfile.jenkins
     container_name: jenkins
     user: root
     ports:
       - "6849:8080"
     environment:
-      - TZ=Asia/Seoul
+      TZ: Asia/Seoul
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock     # Host Docker Engine 제어
+      - ./jenkins_home:/var/jenkins_home              # Jenkins 데이터
     networks:
       - nyd-net
 
