@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  # ==============================
+  # JENKINS
+  # ==============================
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    user: root
+    ports:
+      - "6849:8080"
+    environment:
+      - TZ=Asia/Seoul
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./jenkins_home:/var/jenkins_home
+    networks:
+      - nyd-net
+
+  # ==============================
+  # NPM
+  # ==============================
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: npm
+    ports:
+      # Nginx Proxy Manager HTTP
+      - "80:80"
+      # Nginx Proxy Manager HTTPS
+      - "443:443"
+      # Nginx Proxy Manager UI
+      - "7477:81"
+    volumes:
+      - ../npm-data:/data
+      - ../npm-letsencrypt:/etc/letsencrypt
+    networks:
+      - nyd-net
+
+networks:
+  nyd-net:
+    name: nyd-net   # nyd-net 글로벌 선언
+    driver: bridge
+
+volumes:
+  mariadb-data:
+  redis-data:
