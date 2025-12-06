@@ -4,11 +4,10 @@ USER root
 
 # docker CLI 설치 (Debian 계열에서 docker.io는 안정적으로 존재)
 RUN apt-get update && \
-    apt-get install -y docker.io python3-pip && \
-    pip3 install docker-compose && \
+    apt-get install -y docker.io docker-compose && \
     rm -rf /var/lib/apt/lists/*
 
-# docker 그룹 추가 (선택)
+# (선택) docker 그룹 권한 맞추기
 RUN groupadd -f docker && usermod -aG docker jenkins
 
 USER jenkins
