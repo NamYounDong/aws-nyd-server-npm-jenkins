@@ -16,6 +16,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock     # Host Docker Engine 제어
       - ./jenkins_home:/var/jenkins_home              # Jenkins 데이터
+    group_add:
+      - "113"   # ← 호스트(서버) getent group docker 명령어로 확인한 docker GID로 바꿔 넣기
     networks:
       - nyd-net
 
