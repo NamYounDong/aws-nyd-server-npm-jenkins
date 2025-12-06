@@ -1,85 +1,54 @@
-### JENKINS 설정
-✅ 1. Jenkins 컨테이너 내부 들어가기
+Jenkins + Docker + GitHub SSH 설정 가이드
+
+이 문서는 Docker 환경에서 Jenkins가 GitHub SSH로 코드 체크아웃하고
+Docker 데몬(/var/run/docker.sock)에 정상 접근하도록 설정하는 절차를 정리한 가이드입니다.
+
+1. Jenkins 컨테이너에서 GitHub SSH 설정
+1) 컨테이너 접속
 docker exec -it jenkins bash
 
-안에서 다음처럼 나와야 정상:
-
-whoami
-# jenkins
-
-echo $HOME
-# /var/jenkins_home
-
-✅ 2. ~/.ssh 디렉터리 준비
+2) SSH 디렉터리 생성
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
 
-✅ 3. SSH 키 생성 (ed25519 사용 권장)
+3) SSH 키 생성
 ssh-keygen -t ed25519 -C "your_email@example.com"
 
 
-중간에 물어보는 건 그냥 엔터:
+경로는 기본값 사용
+→ /var/jenkins_home/.ssh/id_ed25519
 
-Enter file in which to save the key (/var/jenkins_home/.ssh/id_ed25519): [Enter]
-Enter passphrase (empty for no passphrase): [Enter]
-Enter same passphrase again: [Enter]
-
-
-생성된 파일:
-
-/var/jenkins_home/.ssh/id_ed25519 (개인키)
-
-/var/jenkins_home/.ssh/id_ed25519.pub (공개키)
-
-✅ 4. GitHub에 SSH 공개키 등록하기
-
-컨테이너 안에서:
-
+4) GitHub에 공개키 등록
 cat ~/.ssh/id_ed25519.pub
 
 
-출력된 전체 문자열을 복사해서:
+출력 내용 → GitHub > Settings > SSH and GPG Keys → New SSH Key
 
-GitHub → Settings → SSH and GPG keys → New SSH Key
-
-에 그대로 붙여넣기.
-
-✅ 5. known_hosts 등록 (매번 yes 안 뜨게)
-
-컨테이너 안에서:
-
+5) known_hosts 등록
 ssh-keyscan github.com >> ~/.ssh/known_hosts
 chmod 644 ~/.ssh/known_hosts
 
-✅ 6. 권한 확인
+6) 권한 설정
 chmod 600 ~/.ssh/id_ed25519
 chmod 600 ~/.ssh/id_ed25519.pub
 
-✅ 7. GitHub 연결 테스트
-ssh -T git@github.com -v
+7) 연결 테스트
+ssh -T git@github.com
 
-
-정상 연결 시:
-
-Hi YOUR_GITHUB_USERNAME! You've successfully authenticated, but GitHub does not provide shell access.
-
-✅ 8. Jenkins Pipeline에서 Git SSH 사용하기
-Jenkins Credentials 등록
-
-Jenkins Dashboard → Credentials
+2. Jenkins Pipeline에서 GitHub SSH 사용
+Jenkins Credentials 추가
 
 Kind: SSH Username with private key
 
 Username: git
 
-Private key: (컨테이너 내부 id_ed25519 내용 그대로 붙여넣기)
+Private key: id_ed25519 내용 복사
 
-ID: GITHUB_SSH_ID 같은 이름으로
+ID: GITHUB_SSH_ID
 
-Pipeline 사용 예시
+Pipeline 예시
 pipeline {
     agent any
-    
     stages {
         stage('Checkout') {
             steps {
@@ -91,38 +60,45 @@ pipeline {
     }
 }
 
-### JENKINS Container Docker.sock 설정
-1단계. 호스트에서 docker 그룹 GID 확인
+3. Jenkins 컨테이너에서 Docker.sock 권한 설정
 
-호스트에서 한 번만 실행:
+Jenkins가 Docker 명령을 실행하려면
+컨테이너 내부 jenkins 유저가 호스트 docker 그룹(GID) 을 가져야 합니다.
 
+1) 호스트에서 docker 그룹 GID 확인
 getent group docker
 
-예시 출력:
 
-docker:x:998:
+예)
 
-2단계. docker-compose.yml 파일 수정
-  # -------------------------------------------------------
-  # Jenkins (+도커 커스텀 이미지 사용)
-  # -------------------------------------------------------
-  jenkins:
-    build:
-      context: .                # 현재 디렉터리
-      dockerfile: Dockerfile.jenkins
-    container_name: jenkins
-    ports:
-      - "8080:8080"
-    environment:
-      TZ: Asia/Seoul
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock     # Host Docker Engine 제어
-      - ./jenkins_home:/var/jenkins_home              # Jenkins 데이터
-    group_add:
-      - "999"   # ← 호스트(서버) getent group docker 명령어로 확인한 docker GID로 바꿔 넣기
-    networks:
-      - nyd-net
+docker:x:113:ubuntu
 
 
+→ 113이 GID
 
+2) docker-compose.yml 수정
+jenkins:
+  build:
+    context: .
+    dockerfile: Dockerfile.jenkins
+  container_name: jenkins
+  ports:
+    - "8080:8080"
+  environment:
+    TZ: Asia/Seoul
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./jenkins_home:/var/jenkins_home
+  group_add:
+    - "113"   # 호스트 docker GID
 
+4. Jenkins Dockerfile 예시
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+RUN apt-get update && \
+    apt-get install -y docker.io docker-compose && \
+    rm -rf /var/lib/apt/lists/*
+
+USER jenkins
